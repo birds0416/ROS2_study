@@ -1,0 +1,4 @@
+/relay_ros2_mqtt:
+  ros__parameters:
+    ~broker_ip_address: 192.168.10.212
+    ~mqtt_pub_topic: window/cmd_vel
