@@ -15,7 +15,7 @@ This pose_mqtt_sever connects to a mqtt broker, its parameters can be changed fr
 
 After changing mqtt broker info in params.yaml, the workspace needs to be **colcon build** again.
 
-### **The process of pose_mqtt_server is like the following:**
+#### **The process of pose_mqtt_server is like the following:**
 
 MQTT Publisher -> MQTT Broker (wherever it is) -> MQTT Subscriber(ROS Node - PoseMQTT)
 
