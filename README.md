@@ -17,7 +17,7 @@ After changing mqtt broker info in params.yaml, the workspace needs to be **colc
 
 **robot_navigator node 출처:** https://github.com/SteveMacenski/nav2_rosdevday_2021/tree/main/nav2_rosdevday_2021
 
-#### The process of pose_mqtt_server is like the following:
+### The process of pose_mqtt_server is like the following:
 
 MQTT Publisher -> MQTT Broker (wherever it is) -> MQTT Subscriber(ROS Node - PoseMQTT)
 
