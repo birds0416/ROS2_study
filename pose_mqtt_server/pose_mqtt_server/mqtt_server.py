@@ -22,39 +22,47 @@ class PoseMQTT(Node):
         # - 계정 정보 : vision / vision!@123
 
         self.declare_parameter("~broker_ip_address", '')
+        # self.declare_parameter("~broker_ip_route", 9999)
         self.declare_parameter("~mqtt_sub_topic", '')
         self.declare_parameter("~mqtt_pub_topic", '')
         self.declare_parameter("~mqtt_username", '')
         self.declare_parameter("~mqtt_password", '')
 
         self.broker_address = self.get_parameter("~broker_ip_address").get_parameter_value().string_value
+        # self.broker_route = self.get_parameter("~broker_ip_route").get_parameter_value().integer_value
         self.MQTT_SUB_TOPIC = self.get_parameter("~mqtt_sub_topic").get_parameter_value().string_value
         self.MQTT_PUB_TOPIC = self.get_parameter("~mqtt_pub_topic").get_parameter_value().string_value
         self.MQTT_USERNAME = self.get_parameter("~mqtt_username").get_parameter_value().string_value
         self.MQTT_PASSWORD = self.get_parameter("~mqtt_password").get_parameter_value().string_value
 
+        try:
+            self.mqttclient = mqtt.Client("ros2mqtt")
+            self.mqttclient.on_message = self.on_message
+            self.mqttclient.username_pw_set(self.MQTT_USERNAME, self.MQTT_PASSWORD)
+
+            self.mqttclient.connect(self.broker_address)
+            # self.mqttclient.connect(self.broker_address, self.broker_route)
+            self.mqttclient.subscribe(self.MQTT_SUB_TOPIC)
+
+            self.mqttclient.loop_start()
+            
+            # ROS 2 publishers and subscribers
+            self.pose_pub = self.create_publisher(PoseStamped, '/pose_from_mqtt', 10)
+            self.pose_sub = self.create_subscription(PoseWithCovarianceStamped, 
+                                                    '/pose', 
+                                                    self.topic2mqtt_callback, 10)
+            
+            self.current_pose = PoseStamped()
+
+            self.get_logger().info('ROS2 MQTT Broker:: START...')
+            self.get_logger().info('ROS2 MQTT Broker:: broker_address = {}'.format(self.broker_address))
+            # self.get_logger().info('ROS2 MQTT Broker:: broker_address = {}:{}'.format(self.broker_address, self.broker_route))
+            self.get_logger().info('ROS2 MQTT Broker:: MQTT_PUB_TOPIC = {}'.format(self.MQTT_PUB_TOPIC))
+            self.get_logger().info('ROS2 MQTT Broker:: MQTT_SUB_TOPIC = {}'.format(self.MQTT_SUB_TOPIC))
         
-        self.mqttclient = mqtt.Client("ros2mqtt")
-        self.mqttclient.on_message = self.on_message
-        self.mqttclient.username_pw_set(self.MQTT_USERNAME, self.MQTT_PASSWORD)
+        except TimeoutError:
+            self.get_logger().error("Cannot connect to mqtt broker {}".format(self.broker_address))
 
-        self.mqttclient.connect(self.broker_address)
-        self.mqttclient.subscribe(self.MQTT_SUB_TOPIC)
-
-        self.mqttclient.loop_start()
-
-        # ROS 2 publishers and subscribers
-        self.pose_pub = self.create_publisher(PoseStamped, '/pose_from_mqtt', 10)
-        self.pose_sub = self.create_subscription(PoseWithCovarianceStamped, 
-                                                 '/pose', 
-                                                 self.topic2mqtt_callback, 10)
-        
-        self.current_pose = PoseStamped()
-
-        self.get_logger().info('ROS2 MQTT Broker:: START...')
-        self.get_logger().info('ROS2 MQTT Broker:: broker_address = {}'.format(self.broker_address))
-        self.get_logger().info('ROS2 MQTT Broker:: MQTT_PUB_TOPIC = {}'.format(self.MQTT_PUB_TOPIC))
-        self.get_logger().info('ROS2 MQTT Broker:: MQTT_SUB_TOPIC = {}'.format(self.MQTT_SUB_TOPIC))
 
     def on_message(self, client, userdata, msg):
         # self.get_logger().info("mqtt message received on topic {}: {}".format(msg.topic, msg.payload.decode("utf-8")))
@@ -66,22 +74,28 @@ class PoseMQTT(Node):
             pose_msg.header.stamp = self.get_clock().now().to_msg()
             pose_msg.header.frame_id = 'robot_pose'
 
-            pose_msg.pose.position.x = float(msg_dict['p_x'])
-            pose_msg.pose.position.y = float(msg_dict['p_y'])
-            pose_msg.pose.position.z = float(msg_dict['p_z'])
+            pose_msg.pose.position.x = float(msg_dict['x'])
+            pose_msg.pose.position.y = float(msg_dict['y'])
 
-            pose_msg.pose.orientation.x = float(msg_dict['o_x'])
-            pose_msg.pose.orientation.y = float(msg_dict['o_y'])
-            pose_msg.pose.orientation.z = float(msg_dict['o_z'])
-            pose_msg.pose.orientation.w = float(msg_dict['o_w'])
+            # pose_msg.pose.position.x = float(msg_dict['p_x'])
+            # pose_msg.pose.position.y = float(msg_dict['p_y'])
+            # pose_msg.pose.position.z = float(msg_dict['p_z'])
+
+            # pose_msg.pose.orientation.x = float(msg_dict['o_x'])
+            # pose_msg.pose.orientation.y = float(msg_dict['o_y'])
+            # pose_msg.pose.orientation.z = float(msg_dict['o_z'])
+            # pose_msg.pose.orientation.w = float(msg_dict['o_w'])
 
             self.current_pose = pose_msg
 
             self.pose_pub.publish(pose_msg)
-            self.get_logger().info("Pose published to topic {}:\npose_x: {},\npose_y: {},\norie_w: {}".format('/pose_from_mqtt', 
+            self.get_logger().info("Pose published to topic {}:\npose_x: {},\npose_y: {}".format('/pose_from_mqtt', 
                                                                              pose_msg.pose.position.x,
-                                                                             pose_msg.pose.position.y,
-                                                                             pose_msg.pose.orientation.w))
+                                                                             pose_msg.pose.position.y))
+            # self.get_logger().info("Pose published to topic {}:\npose_x: {},\npose_y: {},\norie_w: {}".format('/pose_from_mqtt', 
+            #                                                                  pose_msg.pose.position.x,
+            #                                                                  pose_msg.pose.position.y,
+            #                                                                  pose_msg.pose.orientation.w))
 
     def topic2mqtt_callback(self, data):
         if data != None:
@@ -100,9 +114,10 @@ class PoseMQTT(Node):
                 'z':str(self.current_pose.pose.position.z)}
             # self.get_logger().info('dict:: {0}'.format(json.dumps(Dictionary).encode()))
             self.mqttclient.publish(self.MQTT_PUB_TOPIC, json.dumps(Dictionary).encode(),qos=0, retain=False)
-            self.get_logger().info("Robot Pose MQTT Sent : x = {}".format(self.current_pose.pose.position.x))
-            self.get_logger().info("Robot Pose MQTT Sent : y = {}".format(self.current_pose.pose.position.y))
-            self.get_logger().info("Robot Pose MQTT Sent : w = {}".format(self.current_pose.pose.orientation.w))
+            self.get_logger().info("Robot Pose MQTT Sent to {}:\nx = {},\ny: {}".format(
+                                                                    self.MQTT_PUB_TOPIC,
+                                                                    self.current_pose.pose.position.x,
+                                                                    self.current_pose.pose.position.y))
 
 def main(args=None):
     rclpy.init(args=args)

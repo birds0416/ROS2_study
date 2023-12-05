@@ -19,7 +19,7 @@ from rclpy.duration import Duration
 import rclpy
 
 class NavigationResult(Enum):
-    UKNOWN = 0
+    UNKNOWN = 0
     SUCCEEDED = 1
     CANCELED = 2
     FAILED = 3 
@@ -63,6 +63,7 @@ class RobotNavigator(Node):
         self.initial_pose = PoseStamped()
         self.initial_pose.header.frame_id = 'map'
 
+        self.is_pose_mqtt_received = False
         self.received_pose_mqtt = self.create_subscription(PoseStamped,
                                                            '/pose_from_mqtt',
                                                            self.pose_callback,
@@ -87,23 +88,24 @@ class RobotNavigator(Node):
     def pose_callback(self, data):
         self.received_pose_msg.pose.position.x = data.pose.position.x
         self.received_pose_msg.pose.position.y = data.pose.position.y
-        self.received_pose_msg.pose.position.z = data.pose.position.z
+        self.is_pose_mqtt_received = True
+        # self.received_pose_msg.pose.position.z = data.pose.position.z
 
-        self.received_pose_msg.pose.orientation.x = data.pose.orientation.x
-        self.received_pose_msg.pose.orientation.y = data.pose.orientation.y
-        self.received_pose_msg.pose.orientation.z = data.pose.orientation.z
-        self.received_pose_msg.pose.orientation.w = data.pose.orientation.w
+        # self.received_pose_msg.pose.orientation.x = data.pose.orientation.x
+        # self.received_pose_msg.pose.orientation.y = data.pose.orientation.y
+        # self.received_pose_msg.pose.orientation.z = data.pose.orientation.z
+        # self.received_pose_msg.pose.orientation.w = data.pose.orientation.w
 
-        self.get_logger().info("Received Pose from topic: {}\nPosition x = {},\nPosition y = {},\nPosition w = {}".format(
-                                                '/pose_from_mqtt',
-                                                self.received_pose_msg.pose.position.x,
-                                                self.received_pose_msg.pose.position.y,
-                                                self.received_pose_msg.pose.orientation.w))
-
-        # self.get_logger().info("Received Pose Position z = {}".format(self.received_pose_msg.pose.position.z))
-        # self.get_logger().info("Received Pose Orientation x = {}".format(self.received_pose_msg.pose.orientation.x))
-        # self.get_logger().info("Received Pose Orientation y = {}".format(self.received_pose_msg.pose.orientation.y))
-        # self.get_logger().info("Received Pose Orientation z = {}".format(self.received_pose_msg.pose.orientation.z))
+        # self.get_logger().info("Received Pose from topic: {}\nPosition x = {},\nPosition y = {}".format(
+        #                                         '/pose_from_mqtt',
+        #                                         self.received_pose_msg.pose.position.x,
+        #                                         self.received_pose_msg.pose.position.y))
+        
+        # self.get_logger().info("Received Pose from topic: {}\nPosition x = {},\nPosition y = {},\nPosition w = {}".format(
+        #                                         '/pose_from_mqtt',
+        #                                         self.received_pose_msg.pose.position.x,
+        #                                         self.received_pose_msg.pose.position.y,
+        #                                         self.received_pose_msg.pose.orientation.w))
     
     def initialPoseCallback(self, msg):
         self.initial_pose_received = True
@@ -161,6 +163,7 @@ class RobotNavigator(Node):
                            str(pose.pose.position.y) + ' was rejected!')
             return False
 
+        self.is_pose_mqtt_received = False
         self.result_future = self.goal_handle.get_result_async()
         return True
 
@@ -200,6 +203,7 @@ class RobotNavigator(Node):
         rclpy.spin_until_future_complete(self, self.result_future, timeout_sec=0.10)
         if self.result_future.result():
             self.status = self.result_future.result().status
+            self.info("status: {}".format(self.status))
             if self.status != GoalStatus.STATUS_SUCCEEDED:
                 self.debug('Goal with failed with status code: {0}'.format(self.status))
                 return True
@@ -456,6 +460,7 @@ def main(args=None):
     initial_pose.pose.orientation.z = navigator.initial_pose.pose.orientation.z
     initial_pose.pose.orientation.w = navigator.initial_pose.pose.orientation.w
     navigator.waitUntilNav2Active()
+    navigator.goToPose(initial_pose)
 
     # Go to our demos first goal pose
     goal_pose = PoseStamped()
@@ -469,56 +474,37 @@ def main(args=None):
             goal_pose.pose.position.y = navigator.received_pose_msg.pose.position.y
             goal_pose.pose.orientation.w = navigator.received_pose_msg.pose.orientation.w
 
-            # goal_pose.pose.position.x = float(input("Type in goal x position in float: "))
-            # goal_pose.pose.position.y = float(input("Type in goal y position in float: "))
-            # goal_pose.pose.orientation.w = float(input("Type in goal w orientation in float: "))
-
-            # sanity check a valid path exists
-            # path = navigator.getPath(initial_pose, goal_pose)
+            '''TODO
+            메시지 받으면 지금 네비게이션 동작중인지 확인하고,  cancelNav를 호출
+            goToPose 다음에 while not navigator.isNavComplete(): 이 구문이 있으니, 아까 예상대로 완료가 되어야지만 다음 로직 수행.
+            '''
 
             navigator.goToPose(goal_pose)
 
             i = 0
             while not navigator.isNavComplete():
-                ################################################
-                #
-                # Implement some code here for your application!
-                #
-                ################################################
-
                 # Do something with the feedback
                 i = i + 1
                 feedback = navigator.getFeedback()
-                if feedback and i % 5 == 0:
-                    print('Estimated time of arrival: ' + '{0:.0f}'.format(
-                        Duration.from_msg(feedback.estimated_time_remaining).nanoseconds / 1e9)
-                        + ' seconds.')
+                # navigator.info("feedback: {}".format(feedback))
 
-                    # Some navigation timeout to demo cancellation
-                    if Duration.from_msg(feedback.navigation_time) > Duration(seconds=600.0):
-                        navigator.cancelNav()
-
-                    # Some navigation request change to demo preemption
-                    if Duration.from_msg(feedback.navigation_time) > Duration(seconds=18.0):
-                        goal_pose.pose.position.x = -3.0
-                        navigator.goToPose(goal_pose)
+                if navigator.is_pose_mqtt_received:
+                    navigator.cancelNav()
+                    navigator.status = GoalStatus.STATUS_CANCELED
 
             # Do something depending on the return code
             result = navigator.getResult()
             if result == NavigationResult.SUCCEEDED:
-                print('Goal succeeded!')
+                navigator.info('Goal succeeded')
             elif result == NavigationResult.CANCELED:
-                print('Goal was canceled!')
+                navigator.info('Goal canceled')
             elif result == NavigationResult.FAILED:
-                print('Goal failed!')
+                navigator.info('Goal failed')
             else:
-                print('Goal has an invalid return status!')
-
-            time.sleep(1)
+                navigator.info('Goal invalid return status!')
 
             # navigator.lifecycleShutdown()
-
-            # exit(0)
+            time.sleep(0.5)
 
     except KeyboardInterrupt:
         print("KeyboardInterrupt program terminate")
