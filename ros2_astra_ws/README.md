@@ -1,5 +1,5 @@
-# from ros2_astra_ws (open soucre with depth camera usage ros2 package)
+from ros2_astra_ws (open soucre with depth camera usage ros2 package)
 
-# I created new package that subscribes depth point data from depth camera, still processing.
+I created new package that subscribes depth point data from depth camera, still processing.
 
-# (Continuously updating)
+(Continuously updating)
