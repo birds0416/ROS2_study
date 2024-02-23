@@ -30,3 +30,8 @@ MQTT Publisher -> MQTT Broker (wherever it is) -> MQTT Subscriber(ROS Node - Pos
 -> PoseMQTT Node subscribes **"/pose"** topic and converts this to mqtt msg to send it back to the mqtt broker.
 
 -> Eventually, changed robot's pose sent to mqtt broker updates the robot's pose in Unity 3D dimensional space.
+
+## qt_practice
+ROS2 GUI를 만들 때 필요한 PyQt5 사용
+
+python practice_qt.py 로 실행하여 메인 화면을 볼 수 있음
